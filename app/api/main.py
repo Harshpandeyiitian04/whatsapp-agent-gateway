@@ -12,6 +12,7 @@ from app.api.timing import WebhookTimingMiddleware
 from app.clock import SystemClock
 from app.config import get_settings
 from app.db import open_pool
+from app.migrate import migrate
 from app.obs.logs import setup_logging
 
 
@@ -19,6 +20,7 @@ from app.obs.logs import setup_logging
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     setup_logging(settings.log_level)
+    await migrate(settings.database_url)
     pool = await open_pool(settings.database_url, min_size=10, max_size=30)
     app.state.app_state = AppState(settings=settings, pool=pool, clock=SystemClock())
     try:

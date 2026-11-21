@@ -18,6 +18,7 @@ from app.clock import SystemClock
 from app.config import Settings, get_settings
 from app.db import open_pool
 from app.lab.booking import BookingService
+from app.migrate import migrate
 from app.lab.circuit import CircuitBreaker
 from app.lab.client import LabClient
 from app.obs.logs import setup_logging
@@ -87,6 +88,7 @@ async def run() -> None:
     # web service: the booking loops keep running, and /health answers Render's check.
     early_stop = asyncio.Event()
     health_task = asyncio.create_task(health_server(early_stop)) if os.environ.get("PORT") else None
+    await migrate(settings.database_url)
     llm = build_llm(settings)  # fails fast on missing key / unpriced model in real mode
     pool = await open_pool(settings.database_url, min_size=2, max_size=settings.worker_concurrency + 4)
     lab_http = httpx.AsyncClient(
