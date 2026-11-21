@@ -1,0 +1,70 @@
+# Render Blueprint (not deployed by the author; see DEPLOY.md for limits of the free tier).
+# Secrets use `sync: false`, so Render asks for them at creation time; nothing secret is committed.
+databases:
+  - name: wa-gateway-db
+    plan: free            # free Render Postgres expires after 30 days (Render docs: /docs/free)
+    databaseName: gateway
+    user: app
+
+services:
+  - type: web
+    name: wa-gateway-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    preDeployCommand: python -m app.migrate     # paid plans only; on free, run once from a shell
+    dockerCommand: uvicorn app.api.main:app --host 0.0.0.0 --port $PORT --loop uvloop --http httptools --no-access-log
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase: {name: wa-gateway-db, property: connectionString}
+      - key: LAB_BASE_URL
+        value: https://wa-gateway-mocklab.onrender.com
+      - key: WHATSAPP_APP_SECRET
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: ADMIN_TOKEN
+        sync: false
+      - key: LLM_MODE
+        value: mock
+      - key: ALLOW_RESET
+        value: "false"
+
+  - type: web
+    name: wa-gateway-mocklab
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    dockerCommand: uvicorn mocklab.main:app --host 0.0.0.0 --port $PORT --no-access-log
+    envVars:
+      - key: ADMIN_TOKEN
+        sync: false
+
+  - type: worker            # background workers have no free instance type on Render
+    name: wa-gateway-worker
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
+    dockerCommand: python -m app.worker.main
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase: {name: wa-gateway-db, property: connectionString}
+      - key: LAB_BASE_URL
+        value: https://wa-gateway-mocklab.onrender.com
+      - key: WHATSAPP_APP_SECRET
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: ADMIN_TOKEN
+        sync: false
+      - key: LLM_MODE
+        value: mock
+      - key: LLM_API_KEY
+        sync: false
+      - key: ALLOW_RESET
+        value: "false"

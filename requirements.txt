@@ -1,0 +1,11 @@
+fastapi==0.165.0
+starlette==1.10.0
+uvicorn[standard]==0.54.0
+psycopg[binary,pool]==3.3.9
+psycopg-binary==3.3.9
+psycopg-pool==3.3.3
+pydantic==2.14.4
+pydantic-settings==2.16.3
+httpx==0.28.1
+prometheus-client==0.26.0
+anthropic==2.12.0

@@ -1,0 +1,117 @@
+name: wa-gateway
+
+x-app-env: &app-env
+  env_file:
+    - path: .env
+      required: false
+  environment: &app-environment
+    DATABASE_URL: ${DATABASE_URL:-postgresql://app:change-me-local-only@postgres:5432/gateway}
+    LAB_BASE_URL: ${LAB_BASE_URL:-http://mocklab:8100}
+    # Interpolated from the shell first, then .env, so `LLM_MODE=real docker compose up -d worker` switches the
+    # workers to the real model without editing files. Mock stays the default.
+    LLM_MODE: ${LLM_MODE:-mock}
+    LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+    LLM_MODEL: ${LLM_MODEL:-gemini-3.1-flash-lite}
+    LLM_BASE_URL: ${LLM_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai/}
+    LLM_BILLING_TIER: ${LLM_BILLING_TIER:-free}
+    # The LLM key reaches the worker only: blank it for every other service, even though env_file loads .env.
+    API_KEY: ""
+    LLM_API_KEY: ""
+
+services:
+  postgres:
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-local-only}
+      POSTGRES_DB: ${POSTGRES_DB:-gateway}
+    command: ["postgres", "-c", "max_connections=200", "-c", "shared_buffers=256MB"]
+    ports: ["${PG_HOST_PORT:-5455}:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-gateway}"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    build: {context: ., target: runtime}
+    image: wa-gateway:runtime
+    <<: *app-env
+    command: ["python", "-m", "app.migrate"]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+
+  mocklab:
+    image: wa-gateway:runtime
+    build: {context: ., target: runtime}
+    <<: *app-env
+    command: ["uvicorn", "mocklab.main:app", "--host", "0.0.0.0", "--port", "8100", "--no-access-log"]
+    ports: ["${LAB_HOST_PORT:-8100}:8100"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8100/health',timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    image: wa-gateway:runtime
+    build: {context: ., target: runtime}
+    <<: *app-env
+    command: ["uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8000",
+              "--loop", "uvloop", "--http", "httptools", "--no-access-log"]
+    ports: ["${API_HOST_PORT:-8000}:8000"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/health',timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  worker:
+    image: wa-gateway:runtime
+    build: {context: ., target: runtime}
+    <<: *app-env
+    environment:
+      <<: *app-environment
+      LLM_API_KEY: ${LLM_API_KEY:-${API_KEY:-}}
+    command: ["python", "-m", "app.worker.main"]
+    deploy: {replicas: 2}
+    stop_grace_period: 30s
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      mocklab: {condition: service_healthy}
+
+  tests:
+    profiles: [tests]
+    image: wa-gateway:dev
+    build: {context: ., target: dev}
+    <<: *app-env
+    environment:
+      <<: *app-environment
+      TEST_DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-change-me-local-only}@postgres:5432/gateway_test
+      API_URL: http://api:8000
+      LAB_URL: http://mocklab:8100
+    command: ["pytest", "-q"]
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  loadtest:
+    profiles: [load]
+    image: wa-gateway:dev
+    build: {context: ., target: dev}
+    <<: *app-env
+    environment:
+      <<: *app-environment
+      API_URL: http://api:8000
+      LAB_URL: http://mocklab:8100
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    volumes: ["./:/out"]
+    command: ["python", "-m", "scripts.load_test", "--reset", "--out", "/out/LOAD_REPORT.md"]
+    depends_on:
+      api: {condition: service_healthy}
+
+volumes:
+  pgdata:

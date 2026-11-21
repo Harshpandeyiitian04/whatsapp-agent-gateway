@@ -1,0 +1,39 @@
+[project]
+name = "whatsapp-agent-gateway"
+version = "1.0.0"
+description = "WhatsApp booking agent gateway for a diagnostic lab (take-home)"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "ASYNC", "S", "SIM", "RUF"]
+ignore = [
+  "S101",   # assert is fine in tests
+  "S311",   # non-crypto RNG is intentional (jitter, mock lab chaos, load script)
+  "S104",   # binding 0.0.0.0 inside containers is intended
+  "S608",   # SQL is parameterised; f-strings only interpolate constant identifiers
+  "RUF001", "RUF002", "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S105", "S106"]
+"app/config.py" = ["S105"]  # placeholder defaults; real values come from env
+"scripts/**" = ["S105"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_ignores = true
+plugins = ["pydantic.mypy"]
+exclude = ["^tests/", "^scripts/"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+addopts = "-p no:cacheprovider"
+markers = ["integration: needs the full docker compose stack running"]
