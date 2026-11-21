@@ -2,7 +2,7 @@
 
 This project was built with AI help, as the brief allows. This page lists where AI was used and what was checked by hand. Accuracy is the point: nothing here claims a check that didn't happen.
 
-**Tools I confirm:** _<edit me: e.g. "Claude Code (Claude Opus 5.5) only">_
+**Tools I confirm:** Claude Code (Claude Opus 5.5) for the application, tests, and docs. Cursor for the free Render deploy changes only.
 
 ## Claude Code (Anthropic CLI agent, model: Claude Opus 5.5)
 
@@ -31,9 +31,13 @@ Claude Code also did the Gemini integration work:
 - ran the live smoke check and the demo;
 - tuned the system prompt after reviewing the real transcripts (README, "What I learned from the real model").
 
+## Cursor (deploy only, 2026-11-21)
+
+Cursor changed `render.yaml`, `app/api/main.py`, `app/worker/main.py`, and `DEPLOY.md` so the worker can run on Render's free web plan and so database setup runs when the service starts. The booking logic was not changed. The check is the live page `https://wa-gateway-api-vu29.onrender.com/health`, which returns `{"status":"ok","db":"ok"}`.
+
 ## What the AI did not do
 
-- It ran no git commands. I made every commit myself.
+- Claude Code ran no git commands. The application commits were made by hand. The later Render commits were made on this machine and pushed to GitHub.
 - It used no real patient data. All names and phone numbers are synthetic, and phones use the reserved `+91 99999 0XXXX` range.
 - It put no API keys in the repo. Only `.env.example` with placeholders is committed.
 - It never printed, logged or wrote the API key. It read the key only through the worker's environment; checks reported only counts and lengths.
