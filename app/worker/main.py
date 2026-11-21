@@ -18,9 +18,9 @@ from app.clock import SystemClock
 from app.config import Settings, get_settings
 from app.db import open_pool
 from app.lab.booking import BookingService
-from app.migrate import migrate
 from app.lab.circuit import CircuitBreaker
 from app.lab.client import LabClient
+from app.migrate import migrate
 from app.obs.logs import setup_logging
 from app.whatsapp.sender import GraphSender, MockSender, Sender
 from app.worker.leader import Leader
