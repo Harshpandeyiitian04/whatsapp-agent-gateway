@@ -14,7 +14,8 @@ services:
     dockerContext: .
     plan: free
     healthCheckPath: /health
-    dockerCommand: uvicorn app.api.main:app --host 0.0.0.0 --port $PORT --loop uvloop --http httptools --no-access-log
+    # Free instances have no shell. Migrate on boot; app.migrate skips files that already ran.
+    dockerCommand: sh -c "python -m app.migrate && uvicorn app.api.main:app --host 0.0.0.0 --port $PORT --loop uvloop --http httptools --no-access-log"
     envVars:
       - key: DATABASE_URL
         fromDatabase: {name: wa-gateway-db, property: connectionString}
@@ -50,7 +51,7 @@ services:
     dockerContext: .
     plan: free
     healthCheckPath: /health
-    dockerCommand: python -m app.worker.main
+    dockerCommand: sh -c "python -m app.migrate && python -m app.worker.main"
     envVars:
       - key: DATABASE_URL
         fromDatabase: {name: wa-gateway-db, property: connectionString}

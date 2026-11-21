@@ -14,7 +14,7 @@ These deployment notes and `render.yaml` are written but **were not deployed or 
 Steps:
 1. Push the repo to GitHub. In Render, choose **New → Blueprint** and pick the repo.
 2. Fill in the `sync: false` secrets: `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`, `ADMIN_TOKEN`, and optionally `LLM_API_KEY`. Set `LLM_API_KEY` on the worker only, as `render.yaml` does. `LLM_PROVIDER` defaults to `gemini`.
-3. Run the migrations once. The free API plan rejects a pre-deploy command, so open the API shell and run `python -m app.migrate`.
+3. Migrations run when the API and the worker start. The free plan has no shell, and `python -m app.migrate` skips files that already ran.
 4. Point the Meta app's webhook at `https://wa-gateway-api.onrender.com/webhook` and set the same verify token there.
 5. Check that it's up: `curl https://wa-gateway-api.onrender.com/health`
 
