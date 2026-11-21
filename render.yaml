@@ -14,7 +14,6 @@ services:
     dockerContext: .
     plan: free
     healthCheckPath: /health
-    preDeployCommand: python -m app.migrate     # paid plans only; on free, run once from a shell
     dockerCommand: uvicorn app.api.main:app --host 0.0.0.0 --port $PORT --loop uvloop --http httptools --no-access-log
     envVars:
       - key: DATABASE_URL
