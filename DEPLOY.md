@@ -8,7 +8,7 @@ These deployment notes and `render.yaml` are written but **were not deployed or 
 |---|---|---|---|
 | API (`/webhook`, `/metrics`) | Web service | Free plan exists | Free web services **spin down after 15 minutes idle**. The first webhook after idle waits for a cold start, which breaks the <200 ms ack target. Use a paid instance for a real webhook. |
 | Mock lab | Web service | Free | Same spin-down caveat. Only needed for the demo. |
-| Worker | Background worker | **No free type** | Starter is the smallest instance type. |
+| Worker | Web service on the free plan | Free | Runs the same worker process and answers `/health`. Free web services sleep after 15 minutes without a visit. Open the worker URL once to wake it before a demo. |
 | Postgres | Render Postgres | Free plan exists | **Free databases expire 30 days after creation**, have 1 GB of storage, and no backups. |
 
 Steps:

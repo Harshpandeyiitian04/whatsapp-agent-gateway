@@ -29,6 +29,32 @@ log = logging.getLogger("worker")
 SHUTDOWN_GRACE_S = 25
 
 
+async def _health_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    """One-line HTTP reply so a free Render web service can health-check this worker."""
+    with contextlib.suppress(Exception):
+        await asyncio.wait_for(reader.read(1024), timeout=5)
+    body = b'{"status":"ok"}'
+    writer.write(
+        b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
+        + str(len(body)).encode()
+        + b"\r\nConnection: close\r\n\r\n"
+        + body
+    )
+    with contextlib.suppress(Exception):
+        await writer.drain()
+    writer.close()
+    with contextlib.suppress(Exception):
+        await writer.wait_closed()
+
+
+async def health_server(stop: asyncio.Event) -> None:
+    port = int(os.environ["PORT"])
+    server = await asyncio.start_server(_health_client, "0.0.0.0", port)
+    log.info("worker health listening", extra={"port": port})
+    async with server:
+        await stop.wait()
+
+
 async def claim_loop(n: int, processor: Processor, stop: asyncio.Event, settings: Settings) -> None:
     while not stop.is_set():
         try:
@@ -57,6 +83,10 @@ async def heartbeat_loop(worker_id: str, leader: Leader, processor: Processor, s
 async def run() -> None:
     settings = get_settings()
     setup_logging(settings.log_level)
+    # Render free plans have no background worker. When PORT is set, this process is a free
+    # web service: the booking loops keep running, and /health answers Render's check.
+    early_stop = asyncio.Event()
+    health_task = asyncio.create_task(health_server(early_stop)) if os.environ.get("PORT") else None
     llm = build_llm(settings)  # fails fast on missing key / unpriced model in real mode
     pool = await open_pool(settings.database_url, min_size=2, max_size=settings.worker_concurrency + 4)
     lab_http = httpx.AsyncClient(
@@ -74,7 +104,7 @@ async def run() -> None:
         else MockSender()
     )
 
-    stop = asyncio.Event()
+    stop = early_stop
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, stop.set)
@@ -86,6 +116,8 @@ async def run() -> None:
         asyncio.create_task(leader.run()),
         asyncio.create_task(heartbeat_loop(worker_id, leader, processor, stop)),
     ]
+    if health_task is not None:
+        tasks.append(health_task)
     log.info(
         "worker started",
         extra={

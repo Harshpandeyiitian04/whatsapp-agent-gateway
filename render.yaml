@@ -43,12 +43,13 @@ services:
       - key: ADMIN_TOKEN
         sync: false
 
-  - type: worker            # background workers have no free instance type on Render
+  - type: web              # free plan: Render has no free background worker, so this web service runs the worker and answers /health
     name: wa-gateway-worker
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    plan: starter
+    plan: free
+    healthCheckPath: /health
     dockerCommand: python -m app.worker.main
     envVars:
       - key: DATABASE_URL
